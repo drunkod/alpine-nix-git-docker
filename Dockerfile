@@ -45,6 +45,6 @@ SHELL ["/bin/bash", "-c"]
 WORKDIR /workspace
 
 # Verify installation
-RUN . /root/.nix-profile/etc/profile.d/nix.sh && nix --version && git --version
+# RUN . /root/.nix-profile/etc/profile.d/nix.sh && nix --version && git --version
 
 CMD ["/bin/bash", "-l"]
