@@ -66,11 +66,10 @@ jobs:
           platforms: linux/amd64,linux/arm64
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          provenance: false
 
   test:
     runs-on: ubuntu-latest
-    needs: build
-    if: github.event_name == 'pull_request'
 
     steps:
       - name: Checkout repository
@@ -79,20 +78,17 @@ jobs:
       - name: Build test image
         run: docker build -t test-image .
 
-      - name: Test Nix installation
-        run: |
-          docker run --rm test-image bash -c "
-            source /root/.nix-profile/etc/profile.d/nix.sh
-            nix --version
-          "
+      - name: Test - Login shell
+        run: docker run --rm test-image bash -lc "nix --version && git --version"
 
-      - name: Test Git installation
-        run: |
-          docker run --rm test-image git --version
+      - name: Test - Non-login shell
+        run: docker run --rm test-image bash -c "nix --version && git --version"
 
-      - name: Test Nix flakes
-        run: |
-          docker run --rm test-image bash -c "
-            source /root/.nix-profile/etc/profile.d/nix.sh
-            nix run nixpkgs#hello
-          "
+      - name: Test - Direct command
+        run: docker run --rm test-image nix --version
+
+      - name: Test - Nix flakes
+        run: docker run --rm test-image bash -lc "nix run nixpkgs#hello"
+
+      - name: Test - Nix shell
+        run: docker run --rm test-image bash -lc "nix-shell -p curl --run 'curl --version'"
