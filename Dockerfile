@@ -1,10 +1,10 @@
 FROM alpine:3.19
 
-LABEL org.opencontainers.image.source="https://github.com/google-labs/alpine-nix-git" \
+LABEL org.opencontainers.image.source="https://github.com/drunkod/alpine-nix-git-docker" \
       org.opencontainers.image.description="Alpine Linux with Nix package manager and Git" \
       org.opencontainers.image.title="Alpine Nix Git"
 
-# Install base dependencies
+# Install base dependencies including coreutils for GNU cp (required by Nix installer)
 RUN apk update && apk add --no-cache \
     bash \
     curl \
@@ -12,7 +12,10 @@ RUN apk update && apk add --no-cache \
     git \
     shadow \
     sudo \
-    ca-certificates
+    ca-certificates \
+    coreutils \
+    gzip \
+    tar
 
 # Create nix build users
 RUN addgroup -S nixbld \
@@ -26,10 +29,11 @@ RUN mkdir -p /nix /etc/nix /root/.config/nix \
     && echo 'filter-syscalls = false' >> /etc/nix/nix.conf \
     && echo 'experimental-features = flakes nix-command' > /root/.config/nix/nix.conf
 
-# Install Nix (single-user mode for Docker)
+# Install Nix using the official installer (single-user mode for Docker)
+# The installer requires GNU coreutils for cp --preserve
 RUN curl -L https://nixos.org/nix/install -o /tmp/nix-install.sh \
     && chmod +x /tmp/nix-install.sh \
-    && /tmp/nix-install.sh --no-daemon \
+    && sh /tmp/nix-install.sh --no-daemon \
     && rm /tmp/nix-install.sh \
     && rm -rf /var/cache/apk/*
 
