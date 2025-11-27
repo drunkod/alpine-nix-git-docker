@@ -1,20 +1,24 @@
 FROM alpine:3.21
 
-# Install prerequisites (from tutorial section 1.2)
+# Install prerequisites - ADD COREUTILS for GNU cp
 RUN apk add --no-cache \
     bash \
     curl \
     shadow \
     sudo \
     xz \
-    ca-certificates
+    ca-certificates \
+    coreutils
 
-# Create nix directory and install Nix (single-user mode for Docker)
+# Create nix build users
 RUN addgroup -S nixbld && \
     for i in $(seq 1 10); do adduser -S -G nixbld nixbld$i; done
 
-# Install Nix in single-user mode (simpler for Docker)
-RUN sh <(curl --proto '=https' --tlsv1.2 -L https://nixos.org/nix/install) --no-daemon
+# Install Nix in single-user mode
+RUN curl -L https://nixos.org/nix/install -o /tmp/install-nix.sh && \
+    chmod +x /tmp/install-nix.sh && \
+    sh /tmp/install-nix.sh --no-daemon && \
+    rm /tmp/install-nix.sh
 
 # Setup environment for interactive and non-interactive shells
 RUN echo '. /root/.nix-profile/etc/profile.d/nix.sh' >> /root/.bashrc && \
@@ -27,7 +31,7 @@ ENV NIX_PATH="/root/.nix-defexpr/channels"
 # Update nix channels
 RUN . /root/.nix-profile/etc/profile.d/nix.sh && nix-channel --update
 
-# Enable experimental features (flakes, nix-command) - section 1.7
+# Enable experimental features (flakes, nix-command)
 RUN mkdir -p /root/.config/nix && \
     echo 'extra-experimental-features = nix-command flakes' > /root/.config/nix/nix.conf
 
