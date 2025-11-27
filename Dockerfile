@@ -4,7 +4,7 @@ LABEL org.opencontainers.image.source="https://github.com/drunkod/alpine-nix-git
       org.opencontainers.image.description="Alpine Linux with Nix package manager and Git" \
       org.opencontainers.image.title="Alpine Nix Git"
 
-# Install base dependencies including coreutils for GNU cp (required by Nix installer)
+# Install base dependencies
 RUN apk update && apk add --no-cache \
     bash \
     curl \
@@ -16,6 +16,9 @@ RUN apk update && apk add --no-cache \
     coreutils \
     gzip \
     tar
+
+# Set bash as default shell
+RUN sed -i 's|:/bin/ash$|:/bin/bash|' /etc/passwd
 
 # Create nix build users
 RUN addgroup -S nixbld \
@@ -29,22 +32,28 @@ RUN mkdir -p /nix /etc/nix /root/.config/nix \
     && echo 'filter-syscalls = false' >> /etc/nix/nix.conf \
     && echo 'experimental-features = flakes nix-command' > /root/.config/nix/nix.conf
 
-# Install Nix using the official installer (single-user mode for Docker)
-# The installer requires GNU coreutils for cp --preserve
+# Install Nix
 RUN curl -L https://nixos.org/nix/install -o /tmp/nix-install.sh \
     && chmod +x /tmp/nix-install.sh \
     && sh /tmp/nix-install.sh --no-daemon \
     && rm /tmp/nix-install.sh \
     && rm -rf /var/cache/apk/*
 
-# Setup environment
-RUN echo '. /root/.nix-profile/etc/profile.d/nix.sh' >> /root/.bashrc \
-    && echo 'export PATH=$PATH:/root/.nix-profile/bin' >> /root/.bashrc
+# Simple universal profile setup - works everywhere
+RUN { \
+    echo '# Nix environment'; \
+    echo '[ -e /root/.nix-profile/etc/profile.d/nix.sh ] && . /root/.nix-profile/etc/profile.d/nix.sh'; \
+    echo 'export PATH="$PATH:/root/.nix-profile/bin:/nix/var/nix/profiles/default/bin"'; \
+    } | tee /root/.profile /root/.bashrc /root/.bash_profile > /dev/null
 
-SHELL ["/bin/bash", "-c"]
+# Set environment in Docker layer
+ENV PATH="/root/.nix-profile/bin:/nix/var/nix/profiles/default/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+ENV NIX_PATH="/root/.nix-defexpr/channels"
+
+SHELL ["/bin/bash", "-l", "-c"]
 WORKDIR /workspace
 
-# Verify installation
-# RUN . /root/.nix-profile/etc/profile.d/nix.sh && nix --version && git --version
+# Verify
+RUN nix --version && git --version
 
 CMD ["/bin/bash", "-l"]
