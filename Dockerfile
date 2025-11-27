@@ -14,7 +14,7 @@ RUN addgroup -S nixbld && \
     for i in $(seq 1 10); do adduser -S -G nixbld nixbld$i; done
 
 # Install Nix in single-user mode (simpler for Docker)
-RUN curl -L https://nixos.org/nix/install | sh -s -- --no-daemon
+RUN sh <(curl --proto '=https' --tlsv1.2 -L https://nixos.org/nix/install) --no-daemon
 
 # Setup environment for interactive and non-interactive shells
 RUN echo '. /root/.nix-profile/etc/profile.d/nix.sh' >> /root/.bashrc && \
