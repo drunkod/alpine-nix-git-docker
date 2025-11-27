@@ -1,50 +1,42 @@
-FROM alpine:3.19
+FROM alpine:3.21
 
-LABEL org.opencontainers.image.source="https://github.com/drunkod/alpine-nix-git-docker" \
-      org.opencontainers.image.description="Alpine Linux with Nix package manager and Git" \
-      org.opencontainers.image.title="Alpine Nix Git"
-
-# Install base dependencies including coreutils for GNU cp (required by Nix installer)
-RUN apk update && apk add --no-cache \
+# Install prerequisites - ADD COREUTILS for GNU cp
+RUN apk add --no-cache \
     bash \
     curl \
-    xz \
-    git \
     shadow \
     sudo \
+    xz \
     ca-certificates \
-    coreutils \
-    gzip \
-    tar
+    coreutils
 
 # Create nix build users
-RUN addgroup -S nixbld \
-    && for i in $(seq 1 10); do adduser -S -D -H -h /var/empty -s /sbin/nologin -G nixbld nixbld$i; done
+RUN addgroup -S nixbld && \
+    for i in $(seq 1 10); do adduser -S -G nixbld nixbld$i; done
 
-# Create nix directories and config
-RUN mkdir -p /nix /etc/nix /root/.config/nix \
-    && echo 'build-users-group = nixbld' > /etc/nix/nix.conf \
-    && echo 'experimental-features = nix-command flakes' >> /etc/nix/nix.conf \
-    && echo 'sandbox = false' >> /etc/nix/nix.conf \
-    && echo 'filter-syscalls = false' >> /etc/nix/nix.conf \
-    && echo 'experimental-features = flakes nix-command' > /root/.config/nix/nix.conf
+# Install Nix in single-user mode
+RUN curl -L https://nixos.org/nix/install -o /tmp/install-nix.sh && \
+    chmod +x /tmp/install-nix.sh && \
+    sh /tmp/install-nix.sh --no-daemon && \
+    rm /tmp/install-nix.sh
 
-# Install Nix using the official installer (single-user mode for Docker)
-# The installer requires GNU coreutils for cp --preserve
-RUN curl -L https://nixos.org/nix/install -o /tmp/nix-install.sh \
-    && chmod +x /tmp/nix-install.sh \
-    && sh /tmp/nix-install.sh --no-daemon \
-    && rm /tmp/nix-install.sh \
-    && rm -rf /var/cache/apk/*
+# Setup environment for interactive and non-interactive shells
+RUN echo '. /root/.nix-profile/etc/profile.d/nix.sh' >> /root/.bashrc && \
+    echo '. /root/.nix-profile/etc/profile.d/nix.sh' >> /root/.profile
 
-# Setup environment
-RUN echo '. /root/.nix-profile/etc/profile.d/nix.sh' >> /root/.bashrc \
-    && echo 'export PATH=$PATH:/root/.nix-profile/bin' >> /root/.bashrc
+# Set PATH for Docker RUN commands and container runtime
+ENV PATH="/root/.nix-profile/bin:/nix/var/nix/profiles/default/bin:${PATH}"
+ENV NIX_PATH="/root/.nix-defexpr/channels"
 
-SHELL ["/bin/bash", "-c"]
-WORKDIR /workspace
+# Update nix channels
+RUN . /root/.nix-profile/etc/profile.d/nix.sh && nix-channel --update
+
+# Enable experimental features (flakes, nix-command)
+RUN mkdir -p /root/.config/nix && \
+    echo 'extra-experimental-features = nix-command flakes' > /root/.config/nix/nix.conf
 
 # Verify installation
-# RUN . /root/.nix-profile/etc/profile.d/nix.sh && nix --version && git --version
+RUN nix-shell -p nix-info --run "nix-info -m"
 
-CMD ["/bin/bash", "-l"]
+SHELL ["/bin/bash", "-c"]
+CMD ["/bin/bash"]
